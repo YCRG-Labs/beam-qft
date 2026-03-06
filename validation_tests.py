@@ -80,24 +80,17 @@ def linear_test_1d(N=128, T=1.0, eps=0.1):
 # CFL Violation Test
 # -------------------------------
 def cfl_test(d=1, N=32, T=1.0):
-    h = np.pi / (N + 1)
-    dt = 1.1 * h / (1.0 * np.sqrt(d))  # above CFL limit
-    Nt = int(np.ceil(T / dt))
-    dt = T / Nt
-    phi0 = lambda x: 0.1*np.sin(x) if d==1 else lambda *args: 0.1*np.prod(np.sin(np.array(args)), axis=0)
     print("\n--- CFL Violation Test ---")
-    phi_prev = phi0(np.linspace(h, np.pi - h, N)) if d==1 else phi0(*[np.linspace(h, np.pi-h,N)]*d)
-    phi_curr = phi_prev + 0.5 * dt**2 * (1.0 * (-phi_prev))  # naive linear test
-    blowup = False
-    for n in range(1, Nt):
-        phi_next = 2*phi_curr - phi_prev + dt**2 * (-phi_curr)  # linear laplacian approx
-        if np.any(np.isnan(phi_next)) or np.any(np.abs(phi_next)>1e3):
-            print(f"Blowup detected at step {n}")
-            blowup = True
-            break
-        phi_prev, phi_curr = phi_curr, phi_next
-    if not blowup:
-        print("No blowup detected (something might be wrong)")
+    phi0 = lambda x: 0.1 * np.sin(x)
+    phi, _, _ = leapfrog_solve(d, N, c=1.0, lam=1.0,
+                               V_func=None, phi0_func=phi0,
+                               T=T, cfl_frac=1.1)
+    max_val = np.max(np.abs(phi))
+    if np.any(np.isnan(phi)) or max_val > 1e6:
+        print(f"Blowup detected: max|phi| = {max_val:.2e}")
+    else:
+        print(f"WARNING: No blowup detected. max|phi| = {max_val:.2e}")
+        print("Check that cfl_frac > 1.0 is actually exceeding the CFL limit.")
 
 # -------------------------------
 # Energy Drift Plot
@@ -139,4 +132,5 @@ if __name__ == "__main__":
     cfl_test()
 
     # Energy Drift Plot
+
     energy_drift_plot()
