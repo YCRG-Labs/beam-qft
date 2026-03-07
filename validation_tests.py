@@ -80,31 +80,43 @@ def linear_test(N=128, T=1.0, eps=0.1):
     exact = eps * np.sin(grids[0]) * np.cos(T)
     max_err = np.max(np.abs(phi - exact))
     print(f"Max error: {max_err:.6e}")
+    if max_err < 1e-4:
+        print("PASS")
     return max_err
 
 
 # ---------------------------------------------------------------
 # CFL Violation Test
 # ---------------------------------------------------------------
-def cfl_test(d=1, N=32, T=1.0):
+def cfl_test(d=1, N=128, T=1.0):
+    """
+    CFL violation test using the actual solver.
+    N=128 gives ~27 time steps at cfl_frac=1.5, enough for the
+    unstable mode to grow from roundoff (~1e-16) to blowup
+    (amplification factor ~6.85^27 ~ 1e22).
+    """
     print("\n--- CFL Violation Test ---")
+    print(f"d={d}, N={N}, cfl_frac=1.5")
     phi0 = lambda x: 0.1 * np.sin(x)
-    phi, _, _, _ = leapfrog_solve(d, N, c=1.0, lam=1.0,
-                                   V_func=None, phi0_func=phi0,
-                                   T=T, cfl_frac=1.5)
+    phi, _, _, dt = leapfrog_solve(d, N, c=1.0, lam=1.0,
+                                    V_func=None, phi0_func=phi0,
+                                    T=T, cfl_frac=1.5)
+    h = np.pi / (N + 1)
+    nu = 1.0 * dt / h
+    print(f"dt = {dt:.6e}, h = {h:.6e}, nu = {nu:.3f}")
     max_val = np.max(np.abs(phi))
     if np.any(np.isnan(phi)) or max_val > 1e6:
-        print(f"Blowup detected: max|phi| = {max_val:.2e}")
+        print(f"PASS: Blowup detected, max|phi| = {max_val:.2e}")
     else:
-        print(f"WARNING: No blowup detected. max|phi| = {max_val:.2e}")
-        print("Try increasing cfl_frac further.")
+        print(f"WARNING: No blowup, max|phi| = {max_val:.2e}")
+        print("Try N=256 or cfl_frac=2.0")
 
 
 # ---------------------------------------------------------------
 # Energy Conservation Test
 # ---------------------------------------------------------------
 def energy_test(N=256, T=1.0):
-    print("\n--- Energy Conservation Test ---")
+    print(f"\n--- Energy Conservation Test (N={N}) ---")
     phi0 = lambda x: 0.1 * np.sin(x)
     phi, grids, energies, dt = leapfrog_solve(1, N, c=1.0, lam=1.0,
                                                V_func=None, phi0_func=phi0,
@@ -114,14 +126,16 @@ def energy_test(N=256, T=1.0):
     max_drift = np.max(drift)
     final_drift = drift[-1]
 
-    print(f"N = {N}, dt = {dt:.6e}")
+    print(f"dt = {dt:.6e}")
     print(f"Max |dE/E| over trajectory: {max_drift:.6e}")
     print(f"Final |dE/E|:               {final_drift:.6e}")
 
     if max_drift < 1e-4:
         print("PASS: energy drift < 1e-4")
+    elif max_drift < 1e-3:
+        print(f"MARGINAL: energy drift = {max_drift:.2e}")
     else:
-        print(f"MARGINAL: energy drift = {max_drift:.2e} (target < 1e-4)")
+        print(f"FAIL: energy drift = {max_drift:.2e} (target < 1e-4)")
 
     # Plot
     t = np.linspace(0, T, len(energies))
@@ -129,7 +143,7 @@ def energy_test(N=256, T=1.0):
     plt.semilogy(t, drift)
     plt.xlabel("Time")
     plt.ylabel("|$\\Delta E / E$|")
-    plt.title(f"Energy Conservation (N={N}, centered velocity)")
+    plt.title(f"Energy Conservation (N={N}, shadow Hamiltonian)")
     plt.tight_layout()
     plt.savefig("energy_drift.pdf")
     plt.savefig("energy_drift.png", dpi=150)
@@ -149,9 +163,9 @@ def symmetry_test(N=32, T=1.0):
     asym = np.max(np.abs(phi - phi.T))
     print(f"max|Phi(x,y) - Phi(y,x)| = {asym:.2e}")
     if asym < 1e-14:
-        print("PASS: solution is symmetric to machine precision")
+        print("PASS")
     else:
-        print(f"FAIL: asymmetry detected ({asym:.2e})")
+        print(f"FAIL: asymmetry = {asym:.2e}")
     return asym
 
 
@@ -177,7 +191,9 @@ if __name__ == "__main__":
     r2 = convergence_test(2, [8, 16, 32, 64], N_ref=128)
     print_table(r2, 2)
 
-    r3 = convergence_test(3, [8, 16, 32], N_ref=64)
+    # d=3: only report N=8,16 to avoid reference contamination at N=32
+    # (N_ref=64 is only 2x finer than N=32, inflating the apparent rate)
+    r3 = convergence_test(3, [8, 16], N_ref=64)
     print_table(r3, 3)
 
     # 2. Linear test
@@ -186,13 +202,13 @@ if __name__ == "__main__":
     print("=" * 40)
     linear_test()
 
-    # 3. CFL violation test
+    # 3. CFL violation test (N=128 for enough time steps)
     print("\n" + "=" * 40)
     print("3. CFL VIOLATION TEST")
     print("=" * 40)
-    cfl_test()
+    cfl_test(d=1, N=128)
 
-    # 4. Energy conservation
+    # 4. Energy conservation (shadow Hamiltonian)
     print("\n" + "=" * 40)
     print("4. ENERGY CONSERVATION")
     print("=" * 40)
