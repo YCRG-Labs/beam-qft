@@ -87,36 +87,38 @@ def leapfrog_solve(d, N, c, lam, V_func, phi0_func, T, cfl_frac=0.9, store_energ
     def rhs(u):
         return c**2 * laplacian(u) - lam * u**3 + V * u
 
-    def energy_centered(phi_next, phi_curr, phi_prev):
-        """
-        Hamiltonian at integer time step n.
-
-        Uses central-difference velocity v^n = (phi^{n+1} - phi^{n-1}) / (2 dt)
-        and potential evaluated at phi^n. This is the physical energy at a single
-        time level, so it oscillates with bounded O(dt^2) amplitude rather than
-        drifting secularly.
-        """
-        # Centered velocity at time n
-        v = (phi_next - phi_prev) / (2 * dt)
-        KE = 0.5 * h**d * np.sum(v**2)
-
-        # Gradient energy at time n
-        shape_pad = tuple(s + 2 for s in phi_curr.shape)
+    def potential_energy(u):
+        """Potential energy U(q) = (c^2/2)|grad q|^2 + (lam/4) q^4."""
+        shape_pad = tuple(s + 2 for s in u.shape)
         u_pad = np.zeros(shape_pad)
         interior = tuple(slice(1, -1) for _ in range(d))
-        u_pad[interior] = phi_curr
+        u_pad[interior] = u
 
-        grad_sq = np.zeros_like(phi_curr)
+        grad_sq = np.zeros_like(u)
         for axis in range(d):
             slc_plus = list(interior)
             slc_plus[axis] = slice(2, None)
-            grad_sq += ((u_pad[tuple(slc_plus)] - phi_curr) / h)**2
+            grad_sq += ((u_pad[tuple(slc_plus)] - u) / h) ** 2
         GE = 0.5 * c**2 * h**d * np.sum(grad_sq)
+        NE = 0.25 * lam * h**d * np.sum(u**4)
+        return GE + NE
 
-        # Nonlinear potential at time n
-        NE = 0.25 * lam * h**d * np.sum(phi_curr**4)
+    def energy_shadow(phi_next, phi_curr):
+        """
+        Shadow Hamiltonian at half-step n+1/2.
 
-        return KE + GE + NE
+        For Stormer-Verlet, the exactly conserved quantity (up to O(dt^2)
+        bounded oscillations) pairs the forward half-step velocity
+        v^{n+1/2} = (q^{n+1} - q^n) / dt with the potential at q^n.
+
+        This has NO secular drift. The centered velocity (q^{n+1} - q^{n-1})/(2dt)
+        and the backward velocity (q^n - q^{n-1})/dt paired with U(q^n) both
+        introduce O(dt) mismatches that accumulate.
+        """
+        v = (phi_next - phi_curr) / dt
+        KE = 0.5 * h**d * np.sum(v**2)
+        PE = potential_energy(phi_curr)
+        return KE + PE
 
     # First step (Taylor expansion, since dphi/dt(0) = 0)
     phi_prev = phi.copy()
@@ -129,7 +131,10 @@ def leapfrog_solve(d, N, c, lam, V_func, phi0_func, T, cfl_frac=0.9, store_energ
         phi_next = 2 * phi_curr - phi_prev + dt**2 * rhs(phi_curr)
 
         if store_energy:
-            energy_list.append(energy_centered(phi_next, phi_curr, phi_prev))
+            # Shadow Hamiltonian at half-step n+1/2:
+            # KE from v^{n+1/2} = (phi_next - phi_curr)/dt
+            # PE from phi_curr = q^n
+            energy_list.append(energy_shadow(phi_next, phi_curr))
 
         phi_prev = phi_curr
         phi_curr = phi_next
