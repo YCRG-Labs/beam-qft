@@ -1,8 +1,6 @@
-# beam-qft
-Quantum Field Theory Of Collective Effects In Dense Particle Beams
 Code Associated With:
 
-##Quantum Field Theory of Collective Effects in Dense Particle Beams
+## Quantum Field Theory of Collective Effects in Dense Particle Beams
 
 Brandon Yee,<sup>*1</sup> Wilson Collins,<sup>1</sup> Michael Iofin,<sup>1</sup> Jiayi Fu,<sup>1</sup> Jason Lu<sup>1</sup>
 
