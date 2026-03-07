@@ -11,3 +11,18 @@ Correspondence: b.yee@ycrg-labs.org
 ---
 
 This work was supported by the Yee Collins Research Group.
+
+### Run Analysis
+
+Setup
+``` bash
+python -m venv .venv
+source .venv/bin/activate
+
+pip install -r requirements.txt
+```
+
+Run Analysis
+```
+python validation_tests.py
+```
