@@ -128,31 +128,35 @@ def energy_test(N=256, T=1.0):
     print(f"dt = {dt:.6e}")
     print(f"Max |dE/E| over trajectory: {max_drift:.6e}")
 
-    # The theoretical bound is O(dt * T) for the explicit leapfrog
-    # with nonlinear forcing. Verify the scaling, not the absolute value.
     expected_order = dt * T
     ratio = max_drift / expected_order
     print(f"Ratio |dE/E| / (dt*T):      {ratio:.3f}")
-    print(f"(Should be O(1) and independent of N)")
 
     if ratio < 5.0:
         print("PASS: energy drift consistent with O(dt*T) bound")
     else:
         print(f"FAIL: ratio {ratio:.1f} too large")
 
-    # Plot
+    # Save data as .tex for TikZ
     t = np.linspace(0, T, len(energies))
-    plt.figure(figsize=(6, 4))
-    plt.semilogy(t, drift)
-    plt.axhline(y=dt*T, color='r', linestyle='--', label=f'O(dt·T) = {dt*T:.2e}')
-    plt.xlabel("Time")
-    plt.ylabel("|$\\Delta E / E$|")
-    plt.title(f"Energy Conservation (N={N})")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig("energy_drift.pdf")
-    plt.savefig("energy_drift.png", dpi=150)
-    print("Saved: energy_drift.pdf, energy_drift.png")
+    # Subsample to ~200 points so the .tex file isn't enormous
+    step = max(1, len(t) // 200)
+    t_sub = t[::step]
+    drift_sub = drift[::step]
+
+    fname = f"energy_drift_N{N}.tex"
+    with open(fname, 'w') as f:
+        f.write(f"% Energy drift data: N={N}, dt={dt:.6e}, T={T}\n")
+        f.write(f"% Max |dE/E| = {max_drift:.6e}\n")
+        f.write(f"% Ratio |dE/E|/(dt*T) = {ratio:.3f}\n")
+        f.write(f"% Columns: time, |dE/E|\n")
+        f.write(f"% Use with: \\addplot table {{energy_drift_N{N}.tex}};\n")
+        f.write("\\pgfplotstableread{%\n")
+        f.write("t drift\n")
+        for ti, di in zip(t_sub, drift_sub):
+            f.write(f"{ti:.6f} {di:.6e}\n")
+        f.write(f"}}{{\\energydata{N}}}\n")
+    print(f"Saved: {fname}")
 
     return max_drift
 
@@ -228,4 +232,5 @@ if __name__ == "__main__":
     print("\n" + "=" * 60)
     print("ALL TESTS COMPLETE")
     print("=" * 60)
+
 
